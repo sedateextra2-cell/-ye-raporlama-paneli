@@ -442,6 +442,8 @@ function connectFromLogin(){
 }
 function connect(url, key){
   try{
+    url = url.trim().replace(/\/+$/, '');
+    key = key.trim();
     sb = window.supabase.createClient(url, key);
     setConnStatus(true, 'Bağlı: ' + url.replace('https://','').split('.')[0]);
     showApp();
