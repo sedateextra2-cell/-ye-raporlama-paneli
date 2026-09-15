@@ -192,7 +192,8 @@
     </div>
     <div class="navgroup">
       <div class="glabel">Sistem</div>
-      <div class="navitem" data-page="veri-yukleme" onclick="goPage('veri-yukleme')">Veri Yükleme</div>
+      <div class="navitem" data-page="veri-yukleme-yatirimli" onclick="goPage('veri-yukleme-yatirimli')">Yatırımlı Gelenler Yükleme</div>
+      <div class="navitem" data-page="veri-yukleme-yatirimsiz" onclick="goPage('veri-yukleme-yatirimsiz')">Yatırımsız Gelenler Yükleme</div>
       <div class="navitem" data-page="ayarlar" onclick="goPage('ayarlar')">Ayarlar</div>
     </div>
   </div>
@@ -293,30 +294,30 @@
       </div>
 
       <!-- VERİ YÜKLEME -->
-      <div class="page" id="page-veri-yukleme">
-        <h1 class="page-title">Veri Yükleme</h1>
+      <div class="page" id="page-veri-yukleme-yatirimli">
+        <h1 class="page-title">Yatırımlı Gelenler Yükleme</h1>
         <div class="page-sub">Excel rapor(lar)ını buradan yükleyin — tarih her satırdaki "Atanma Tarihi"nden otomatik belirlenir</div>
-        <div class="upload-box" id="uploadDropZone">
+        <div class="upload-box" id="uploadDropZoneYatirimli">
           <div>
-            <input type="file" id="fileInput" accept=".xlsx" multiple>
+            <input type="file" id="fileInputYatirimli" accept=".xlsx" multiple>
             <div style="font-size:11px;color:var(--muted);margin-top:4px;">Birden fazla dosya seçebilir/sürükleyebilirsiniz</div>
           </div>
           <div>
             <label style="font-size:11px;color:var(--muted)">Yedek tarih (Atanma Tarihi boşsa kullanılır)</label><br>
-            <input type="date" id="reportDate">
+            <input type="date" id="reportDateYatirimli">
           </div>
-          <button class="btn" onclick="handleUpload()">Excel'i Oku ve Önizle</button>
-          <span id="uploadStatus" style="font-size:12px;color:var(--muted)"></span>
+          <button class="btn" onclick="handleUpload('Yatirimli')">Excel'i Oku ve Önizle</button>
+          <span id="uploadStatusYatirimli" style="font-size:12px;color:var(--muted)"></span>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin:-10px 0 20px;">
-          <button class="btn secondary" onclick="pickDownloadsFolder()">İndirilenler Klasörünü Bağla</button>
-          <button class="btn secondary" onclick="loadFromDownloadsFolder()">Klasördeki En Son Excel'i Bul</button>
-          <span id="klasorStatus" style="font-size:12px;color:var(--muted)"></span>
+          <button class="btn secondary" onclick="pickDownloadsFolder('Yatirimli')">İndirilenler Klasörünü Bağla</button>
+          <button class="btn secondary" onclick="loadFromDownloadsFolder('Yatirimli')">Klasördeki En Son Excel'i Bul</button>
+          <span id="klasorStatusYatirimli" style="font-size:12px;color:var(--muted)"></span>
         </div>
-        <div id="uploadPreview" style="display:none;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px;">
-          <div id="uploadPreviewText" style="font-size:13px;margin-bottom:14px;"></div>
-          <button class="btn" onclick="confirmUpload()">Onayla ve Yükle</button>
-          <button class="btn secondary" onclick="cancelUpload()">Vazgeç</button>
+        <div id="uploadPreviewYatirimli" style="display:none;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px;">
+          <div id="uploadPreviewTextYatirimli" style="font-size:13px;margin-bottom:14px;"></div>
+          <button class="btn" onclick="confirmUpload('Yatirimli')">Onayla ve Yükle</button>
+          <button class="btn secondary" onclick="cancelUpload('Yatirimli')">Vazgeç</button>
         </div>
         <div id="uploadLogWrap"></div>
 
@@ -344,6 +345,33 @@
             <button class="btn secondary" onclick="previewSil()">Kaç kayıt silinecek?</button>
           </div>
           <div id="silPreview" style="font-size:13px;margin-top:14px;"></div>
+        </div>
+      </div>
+
+      <div class="page" id="page-veri-yukleme-yatirimsiz">
+        <h1 class="page-title">Yatırımsız Gelenler Yükleme</h1>
+        <div class="page-sub">Excel rapor(lar)ını buradan yükleyin — tarih her satırdaki "Atanma Tarihi"nden otomatik belirlenir</div>
+        <div class="upload-box" id="uploadDropZoneYatirimsiz">
+          <div>
+            <input type="file" id="fileInputYatirimsiz" accept=".xlsx" multiple>
+            <div style="font-size:11px;color:var(--muted);margin-top:4px;">Birden fazla dosya seçebilir/sürükleyebilirsiniz</div>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted)">Yedek tarih (Atanma Tarihi boşsa kullanılır)</label><br>
+            <input type="date" id="reportDateYatirimsiz">
+          </div>
+          <button class="btn" onclick="handleUpload('Yatirimsiz')">Excel'i Oku ve Önizle</button>
+          <span id="uploadStatusYatirimsiz" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin:-10px 0 20px;">
+          <button class="btn secondary" onclick="pickDownloadsFolder('Yatirimsiz')">İndirilenler Klasörünü Bağla</button>
+          <button class="btn secondary" onclick="loadFromDownloadsFolder('Yatirimsiz')">Klasördeki En Son Excel'i Bul</button>
+          <span id="klasorStatusYatirimsiz" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div id="uploadPreviewYatirimsiz" style="display:none;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:20px;">
+          <div id="uploadPreviewTextYatirimsiz" style="font-size:13px;margin-bottom:14px;"></div>
+          <button class="btn" onclick="confirmUpload('Yatirimsiz')">Onayla ve Yükle</button>
+          <button class="btn secondary" onclick="cancelUpload('Yatirimsiz')">Vazgeç</button>
         </div>
       </div>
 
@@ -1688,14 +1716,19 @@ function renderMemberSparkline(history){
 function closeModal(){ document.getElementById('modalBg').classList.remove('open'); }
 
 /* ================= VERİ YÜKLEME ================= */
-document.getElementById('reportDate').valueAsDate = new Date();
-document.getElementById('fileInput').addEventListener('change', function(){
-  const f = this.files[0];
-  if(!f) return;
-  document.getElementById('reportDate').valueAsDate = new Date();
+['Yatirimli','Yatirimsiz'].forEach(suffix=>{
+  const dateEl = document.getElementById('reportDate'+suffix);
+  if(dateEl) dateEl.valueAsDate = new Date();
+  const fileEl = document.getElementById('fileInput'+suffix);
+  if(fileEl){
+    fileEl.addEventListener('change', function(){
+      if(!this.files[0]) return;
+      document.getElementById('reportDate'+suffix).valueAsDate = new Date();
+    });
+  }
 });
 
-let pendingUpload = null;
+let pendingUploads = {};
 
 function idbGet(key){
   return new Promise((resolve,reject)=>{
@@ -1723,21 +1756,21 @@ function idbSet(key, value){
     req.onerror = ()=> reject(req.error);
   });
 }
-async function pickDownloadsFolder(){
-  const status = document.getElementById('klasorStatus');
+async function pickDownloadsFolder(suffix){
+  const status = document.getElementById('klasorStatus'+suffix);
   if(!window.showDirectoryPicker){ status.textContent = 'Tarayıcınız bu özelliği desteklemiyor (Chrome/Edge gerekli).'; return; }
   try{
     const handle = await window.showDirectoryPicker();
-    await idbSet('indirilenlerKlasoru', handle);
+    await idbSet('indirilenlerKlasoru'+suffix, handle);
     status.textContent = 'Klasör bağlandı: ' + handle.name;
   }catch(e){
     // kullanıcı iptal etti, sessizce geç
   }
 }
-async function loadFromDownloadsFolder(){
-  const status = document.getElementById('klasorStatus');
+async function loadFromDownloadsFolder(suffix){
+  const status = document.getElementById('klasorStatus'+suffix);
   let handle;
-  try{ handle = await idbGet('indirilenlerKlasoru'); }catch(e){}
+  try{ handle = await idbGet('indirilenlerKlasoru'+suffix); }catch(e){}
   if(!handle){ status.textContent = 'Önce "İndirilenler Klasörünü Bağla" ile bir klasör seçin.'; return; }
 
   let perm = await handle.queryPermission({mode:'read'});
@@ -1758,12 +1791,12 @@ async function loadFromDownloadsFolder(){
 
   const dt = new DataTransfer();
   dt.items.add(enSonDosya);
-  document.getElementById('fileInput').files = dt.files;
-  document.getElementById('fileInput').dispatchEvent(new Event('change'));
+  document.getElementById('fileInput'+suffix).files = dt.files;
+  document.getElementById('fileInput'+suffix).dispatchEvent(new Event('change'));
   status.textContent = `Bulundu: ${enSonDosya.name} — şimdi "Excel'i Oku ve Önizle"ye basın.`;
 }
-function initUploadDropZone(){
-  const zone = document.getElementById('uploadDropZone');
+function initUploadDropZone(suffix){
+  const zone = document.getElementById('uploadDropZone'+suffix);
   if(!zone || zone._dropBound) return;
   zone._dropBound = true;
   zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
@@ -1772,8 +1805,8 @@ function initUploadDropZone(){
     e.preventDefault();
     zone.style.borderColor = '';
     if(e.dataTransfer.files.length){
-      document.getElementById('fileInput').files = e.dataTransfer.files;
-      document.getElementById('fileInput').dispatchEvent(new Event('change'));
+      document.getElementById('fileInput'+suffix).files = e.dataTransfer.files;
+      document.getElementById('fileInput'+suffix).dispatchEvent(new Event('change'));
     }
   });
 }
@@ -1790,14 +1823,14 @@ function hesaplaSegment(atanmaZamani, ilkYatirimZamani){
   return ilkYatirimZamani < atanmaZamani ? 'yatirimli' : 'yatirimsiz';
 }
 
-async function handleUpload(){
-  if(!sb){ document.getElementById('uploadStatus').textContent = 'Önce Ayarlar sayfasından Supabase bağlantısı kurun.'; return; }
-  const fileInput = document.getElementById('fileInput');
+async function handleUpload(suffix){
+  if(!sb){ document.getElementById('uploadStatus'+suffix).textContent = 'Önce Ayarlar sayfasından Supabase bağlantısı kurun.'; return; }
+  const fileInput = document.getElementById('fileInput'+suffix);
   const files = Array.from(fileInput.files || []);
-  const status = document.getElementById('uploadStatus');
+  const status = document.getElementById('uploadStatus'+suffix);
   if(files.length===0){ status.textContent='Önce en az bir excel dosyası seçin.'; return; }
 
-  const fallbackTarih = document.getElementById('reportDate').value || null;
+  const fallbackTarih = document.getElementById('reportDate'+suffix).value || null;
   status.textContent = `Okunuyor... (0/${files.length} dosya)`;
   const allRecords = [];
   let atlananSifirYatirim = 0;
@@ -1857,32 +1890,33 @@ async function handleUpload(){
   allRecords.forEach(r=>{ (tarihGruplari[r.tarih] ||= []).push(r); });
   const tarihler = Object.keys(tarihGruplari).sort();
 
-  pendingUpload = {records: allRecords, fileName: files.map(f=>f.name).join(', ')};
+  pendingUploads[suffix] = {records: allRecords, fileName: files.map(f=>f.name).join(', ')};
   status.textContent = '';
   const tarihSatirlari = tarihler.map(t=>{
     const grup = tarihGruplari[t];
     const yatirimli = grup.filter(r=>r.segment==='yatirimli').length;
     return `• ${t}: ${grup.length} üye (${yatirimli} yatırımlı, ${grup.length-yatirimli} yatırımsız)`;
   }).join('<br>');
-  document.getElementById('uploadPreviewText').innerHTML = `
+  document.getElementById('uploadPreviewText'+suffix).innerHTML = `
     <b>${files.length}</b> dosyadan <b>${allRecords.length}</b> yatırımlı üye okundu, <b>${tarihler.length}</b> farklı tarihe dağıtıldı:<br>
     ${tarihSatirlari}<br><br>
     0 yatırımlı olduğu için atlanan: ${atlananSifirYatirim}${tarihsizAtlanan?`<br>Tarihi belirlenemediği için atlanan (Atanma Tarihi boş, yedek tarih de seçilmemiş): ${tarihsizAtlanan}`:''}
   `;
-  document.getElementById('uploadPreview').style.display = 'block';
+  document.getElementById('uploadPreview'+suffix).style.display = 'block';
 }
 function store_existingLoginsForDate(dateStr){
   return new Set(Object.keys(latestByDate[dateStr] || {}));
 }
-function cancelUpload(){
-  pendingUpload = null;
-  document.getElementById('uploadPreview').style.display = 'none';
-  document.getElementById('fileInput').value = '';
+function cancelUpload(suffix){
+  pendingUploads[suffix] = null;
+  document.getElementById('uploadPreview'+suffix).style.display = 'none';
+  document.getElementById('fileInput'+suffix).value = '';
 }
-async function confirmUpload(){
-  if(!pendingUpload) return;
-  const {records, fileName} = pendingUpload;
-  const status = document.getElementById('uploadStatus');
+async function confirmUpload(suffix){
+  const pending = pendingUploads[suffix];
+  if(!pending) return;
+  const {records, fileName} = pending;
+  const status = document.getElementById('uploadStatus'+suffix);
 
   const veriMap = new Map();
   records.forEach(r => veriMap.set(r.login+'|'+r.tarih, r));
@@ -1915,9 +1949,9 @@ async function confirmUpload(){
 
   const tarihSayisi = Object.keys(tarihSayilari).length;
   status.textContent = `${veriRows.length} üye kaydedildi (${tarihSayisi} farklı tarihe).`;
-  document.getElementById('uploadPreview').style.display = 'none';
-  document.getElementById('fileInput').value = '';
-  pendingUpload = null;
+  document.getElementById('uploadPreview'+suffix).style.display = 'none';
+  document.getElementById('fileInput'+suffix).value = '';
+  pendingUploads[suffix] = null;
   await refreshData();
   if(tarihSayisi === 1){
     await sendUploadAlerts(Object.keys(tarihSayilari)[0]);
@@ -2254,7 +2288,8 @@ async function renderUploadLog(){
 /* ================= BAŞLAT ================= */
 initTheme();
 initConnection();
-initUploadDropZone();
+initUploadDropZone('Yatirimli');
+initUploadDropZone('Yatirimsiz');
 </script>
 </body>
 </html>
