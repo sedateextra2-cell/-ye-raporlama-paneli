@@ -1785,12 +1785,9 @@ function parseTRDateTime(s){
   const dd=m[1], mm=m[2], yyyy=m[3], hh=m[4]||'00', mi=m[5]||'00', ss=m[6]||'00';
   return new Date(Date.UTC(parseInt(yyyy), parseInt(mm)-1, parseInt(dd), parseInt(hh), parseInt(mi), parseInt(ss)));
 }
-function hesaplaSegment(atanmaZamani, sonYatirimZamani){
-  if(!atanmaZamani || !sonYatirimZamani) return 'yatirimsiz';
-  const kesim = new Date(atanmaZamani);
-  kesim.setUTCDate(kesim.getUTCDate()+1);
-  kesim.setUTCHours(10,0,0,0);
-  return sonYatirimZamani < kesim ? 'yatirimli' : 'yatirimsiz';
+function hesaplaSegment(atanmaZamani, ilkYatirimZamani){
+  if(!atanmaZamani || !ilkYatirimZamani) return 'yatirimsiz';
+  return ilkYatirimZamani < atanmaZamani ? 'yatirimli' : 'yatirimsiz';
 }
 
 async function handleUpload(){
@@ -1816,7 +1813,7 @@ async function handleUpload(){
     rawRows.forEach(r => {
       const login = String(r['Kullanıcı Adı']||'').trim();
       if(!login) return;
-      const yatirimAdedi = toNum(r['Yatırım Adedi']);
+      const yatirimAdedi = toNumEN(r['Yatırım Adedi']);
 
       const atanmaZamani = parseTRDateTime(r['Atanma Tarihi']);
       const tarih = atanmaZamani ? atanmaZamani.toISOString().slice(0,10) : fallbackTarih;
@@ -1824,10 +1821,11 @@ async function handleUpload(){
 
       const kayitZamani = parseTRDateTime(r['Kayıt Tarihi']);
       const ilkYatZamani = parseTRDateTime(r['İlk Yatırım Tarihi']);
+      if(!ilkYatZamani){ atlananSifirYatirim++; return; }
       const sonYatZamani = parseTRDateTime(r['Son Yatırım Tarihi']);
       const sonCekZamani = parseTRDateTime(r['Son Çekim Tarihi']);
       const senkronZamani = parseTRDateTime(r['Senkron Tarihi']);
-      const segment = hesaplaSegment(atanmaZamani, sonYatZamani);
+      const segment = hesaplaSegment(atanmaZamani, ilkYatZamani);
 
       allRecords.push({
         tarih, login,
@@ -1837,15 +1835,15 @@ async function handleUpload(){
         kayit_tarihi: kayitZamani ? kayitZamani.toISOString().slice(0,10) : null,
         segment,
         yatirim_adedi: yatirimAdedi,
-        toplam_yatirim: toNum(r['Toplam Yatırım']),
-        ilk_yatirim: toNum(r['İlk Yatırım Tutarı']),
+        toplam_yatirim: toNumEN(r['Toplam Yatırım']),
+        ilk_yatirim: toNumEN(r['İlk Yatırım Tutarı']),
         ilk_yatirim_zamani: ilkYatZamani ? ilkYatZamani.toISOString() : null,
         son_yatirim_zamani: sonYatZamani ? sonYatZamani.toISOString() : null,
-        cekim_adedi: toNum(r['Çekim Adedi']),
-        toplam_cekim: toNum(r['Toplam Çekim']),
-        ilk_cekim: toNum(r['İlk Çekim Tutarı']),
+        cekim_adedi: toNumEN(r['Çekim Adedi']),
+        toplam_cekim: toNumEN(r['Toplam Çekim']),
+        ilk_cekim: toNumEN(r['İlk Çekim Tutarı']),
         son_cekim_zamani: sonCekZamani ? sonCekZamani.toISOString() : null,
-        bakiye: toNum(r['Bakiye']),
+        bakiye: toNumEN(r['Bakiye']),
         senkron_zamani: senkronZamani ? senkronZamani.toISOString() : null,
         vip_kontrol: '', hediye_hakki: ''
       });
