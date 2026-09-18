@@ -775,83 +775,61 @@ function deltaSpan(val, isMoney){
 /* Genel tablo çizici — segment/pasif/tier sayfalarında ortak kullanılır */
 function renderSegmentPage(containerId, title, sub, rows, opts){
   opts = opts || {};
-  const compareDate = document.getElementById('compareDate').value;
   const viewDate = document.getElementById('viewDate').value;
   const el = document.getElementById(opts.targetElId || ('page-'+containerId));
   const prev = {
     search: document.getElementById(containerId+'-search')?.value || '',
     rep: document.getElementById(containerId+'-rep')?.value || '',
-    kayit: document.getElementById(containerId+'-kayit')?.value || '',
-    min: document.getElementById(containerId+'-min')?.value || '',
-    max: document.getElementById(containerId+'-max')?.value || '',
-    minAdet: document.getElementById(containerId+'-minAdet')?.value || '',
-    maxAdet: document.getElementById(containerId+'-maxAdet')?.value || '',
-    hareketsizlik: document.getElementById(containerId+'-hareketsizlik')?.value || ''
+    kayit: document.getElementById(containerId+'-kayit')?.value || ''
   };
   const repOpts = [...new Set(rows.map(r=>r.temsilci).filter(Boolean))].sort()
     .map(r=>`<option value="${r}" ${r===prev.rep?'selected':''}>${r}</option>`).join('');
   const kayitOpts = [['','Kayıt: tümü'],['7','Son 7 gün'],['30','Son 30 gün']]
     .map(([v,l])=>`<option value="${v}" ${v===prev.kayit?'selected':''}>${l}</option>`).join('');
-  const hareketsizlikOpts = [['','Hareketsizlik: tümü'],['5','5+ gün'],['12','12+ gün'],['21','21+ gün'],['30','30+ gün']]
-    .map(([v,l])=>`<option value="${v}" ${v===prev.hareketsizlik?'selected':''}>${l}</option>`).join('');
   const filterBoxes = `
     <div class="toolbar">
       <div class="toolbar-left">
         <input type="text" id="${containerId}-search" placeholder="Login veya telefon ara..." value="${prev.search.replace(/"/g,'&quot;')}" oninput="renderCurrentPage('${containerId}')">
         <select id="${containerId}-rep" onchange="renderCurrentPage('${containerId}')"><option value="">Tüm temsilciler</option>${repOpts}</select>
         <select id="${containerId}-kayit" onchange="renderCurrentPage('${containerId}')">${kayitOpts}</select>
-        <input type="number" id="${containerId}-min" placeholder="Min ₺" style="width:90px" value="${prev.min}" oninput="renderCurrentPage('${containerId}')">
-        <input type="number" id="${containerId}-max" placeholder="Max ₺" style="width:90px" value="${prev.max}" oninput="renderCurrentPage('${containerId}')">
-        <input type="number" id="${containerId}-minAdet" placeholder="Min yat. adedi" style="width:110px" value="${prev.minAdet}" oninput="renderCurrentPage('${containerId}')">
-        <input type="number" id="${containerId}-maxAdet" placeholder="Max yat. adedi" style="width:110px" value="${prev.maxAdet}" oninput="renderCurrentPage('${containerId}')">
-        <select id="${containerId}-hareketsizlik" onchange="renderCurrentPage('${containerId}')">${hareketsizlikOpts}</select>
       </div>
       <button class="btn secondary" onclick="exportRows('${containerId}')">Excel'e Aktar</button>
     </div>`;
   const filtered = applyCommonFilters(rows, containerId, viewDate);
-  const withD = withDeltas(filtered, compareDate);
 
-  const extraCols = opts.extraCols || [];
-  let html = `<h1 class="page-title">${title}</h1><div class="page-sub">${sub} · ${withD.length} üye</div>`;
+  const fmtDT = v => v ? new Date(v).toLocaleString('tr-TR') : '';
+  let html = `<h1 class="page-title">${title}</h1><div class="page-sub">${sub} · ${filtered.length} üye</div>`;
   html += filterBoxes;
-  if(withD.length===0){
+  if(filtered.length===0){
     html += '<div class="empty">Bu kritere uyan üye yok.</div>';
   } else {
     html += '<div class="table-wrap"><table><thead><tr>';
-    html += '<th>Temsilci</th><th>Login</th><th>Telefon</th><th>Kayıt</th><th>Yat. adedi</th><th>Toplam yatırım</th><th>Çekim adedi</th><th>Toplam çekim</th><th>İlk çekim</th><th>Son çekim tarihi</th>';
-    extraCols.forEach(c => html += `<th>${c.label}</th>`);
-    if(compareDate) html += '<th>Yat. değişim</th>';
+    html += '<th>Temsilci</th><th>Login</th><th>Telefon</th><th>Atanma Tarihi</th><th>Ad</th><th>Kayıt Tarihi</th><th>Casino Son Bahis</th><th>Spor Son Bahis</th><th>İlk Yatırım Tarihi</th><th>Son Yatırım Tarihi</th><th>Toplam Çekim</th>';
     html += '</tr></thead><tbody>';
-    withD.forEach(r=>{
+    filtered.forEach(r=>{
       html += `<tr onclick='openMemberModal(${JSON.stringify(r.login)})'>
         <td>${r.temsilci||''}</td>
         <td>${r.login}${r.is_new?'<span class="badge yeni">YENİ</span>':''}</td>
         <td>${r.telefon||''}</td>
+        <td>${fmtDT(r.atanma_tarihi)}</td>
+        <td>${r.isim||''}</td>
         <td>${r.kayit_tarihi||''}</td>
-        <td>${fmtInt(r.yatirim_adedi)}</td>
-        <td>${fmtMoney(r.toplam_yatirim)}</td>
-        <td>${fmtInt(r.cekim_adedi)}</td>
+        <td>${fmtDT(r.casino_son_bahis)}</td>
+        <td>${fmtDT(r.spor_son_bahis)}</td>
+        <td>${fmtDT(r.ilk_yatirim_zamani)}</td>
+        <td>${fmtDT(r.son_yatirim_zamani)}</td>
         <td>${fmtMoney(r.toplam_cekim)}</td>
-        <td>${fmtMoney(r.ilk_cekim)}</td>
-        <td>${lastWithdrawalDate(r.login, viewDate) || '–'}</td>`;
-      extraCols.forEach(c => html += `<td>${c.render(r)}</td>`);
-      if(compareDate) html += `<td>${deltaSpan(r.delta_toplam_yatirim, true)}</td>`;
-      html += '</tr>';
+      </tr>`;
     });
     html += '</tbody></table></div>';
   }
   el.innerHTML = html;
-  window['_exportRows_'+containerId] = withD.map(r => {
-    const row = {
-      Temsilci:r.temsilci, Login:r.login, Telefon:r.telefon, 'Kayıt Tarihi':r.kayit_tarihi,
-      'Yatırım Adedi':r.yatirim_adedi, 'Toplam Yatırım':r.toplam_yatirim,
-      'Çekim Adedi':r.cekim_adedi, 'Toplam Çekim':r.toplam_cekim,
-      'İlk Çekim':r.ilk_cekim, 'Son Çekim Tarihi': lastWithdrawalDate(r.login, viewDate) || ''
-    };
-    extraCols.forEach(c => row[c.label] = c.exportVal ? c.exportVal(r) : c.render(r).replace(/<[^>]+>/g,''));
-    if(compareDate) row['Yatırım Değişimi'] = r.delta_toplam_yatirim ?? '';
-    return row;
-  });
+  window['_exportRows_'+containerId] = filtered.map(r => ({
+    Telefon:r.telefon, Personel:r.temsilci, 'Atanma Tarihi': r.atanma_tarihi||'', Ad:r.isim,
+    'Kayıt Tarihi':r.kayit_tarihi, 'Casino Son Bahis': r.casino_son_bahis||'', 'Spor Son Bahis': r.spor_son_bahis||'',
+    'İlk Yatırım Tarihi': r.ilk_yatirim_zamani||'', 'Son Yatırım Tarihi': r.son_yatirim_zamani||'',
+    'Toplam Çekim': r.toplam_cekim, 'Kullanıcı Adı': r.login
+  }));
 }
 
 const TOPLU_EXPORT_DEFS = [
@@ -860,26 +838,11 @@ const TOPLU_EXPORT_DEFS = [
 ];
 function buildExportRow(r, viewDate, segKey){
   const base = {
-    Temsilci:r.temsilci, Login:r.login, Telefon:r.telefon, 'Kayıt Tarihi':r.kayit_tarihi,
-    'Yatırım Adedi':r.yatirim_adedi, 'Toplam Yatırım':r.toplam_yatirim,
-    'Çekim Adedi':r.cekim_adedi, 'Toplam Çekim':r.toplam_cekim,
-    'İlk Çekim':r.ilk_cekim, 'Son Çekim Tarihi': lastWithdrawalDate(r.login, viewDate) || ''
+    Telefon:r.telefon, Personel:r.temsilci, 'Atanma Tarihi': r.atanma_tarihi||'', Ad:r.isim,
+    'Kayıt Tarihi':r.kayit_tarihi, 'Casino Son Bahis': r.casino_son_bahis||'', 'Spor Son Bahis': r.spor_son_bahis||'',
+    'İlk Yatırım Tarihi': r.ilk_yatirim_zamani||'', 'Son Yatırım Tarihi': r.son_yatirim_zamani||'',
+    'Toplam Çekim': r.toplam_cekim, 'Kullanıcı Adı': r.login
   };
-  if(segKey==='vip'){
-    base['VIP Kontrol'] = r.login; base['Hediye Hakkı'] = r.hediye_hakki||'';
-  }
-  if(segKey==='vipyakin-durum'){
-    const t = tierFor(r.toplam_yatirim);
-    base['Yaklaşılan Statü'] = t.name; base['Hedef Tutar'] = t.hedef; base['Kalan Tutar'] = t.hedef - r.toplam_yatirim;
-  }
-  if(segKey==='terfi'){
-    base['Kalan Tutar'] = TERFI_RANGE.hedef - r.toplam_yatirim;
-  }
-  if(segKey==='pasif'){
-    const d = lastIncreaseDate(r.login, viewDate);
-    base['Son Yatırım Tarihi'] = d || '';
-    base['Kaç Gündür Pasif'] = d ? daysBetween(d, viewDate) : '';
-  }
   base['Kaynak'] = memberSourceLabel(viewDate, r.login);
   return base;
 }
@@ -1870,6 +1833,8 @@ async function handleUpload(suffix){
       const sonYatZamani = parseTRDateTime(r['Son Yatırım Tarihi']);
       const sonCekZamani = parseTRDateTime(r['Son Çekim Tarihi']);
       const senkronZamani = parseTRDateTime(r['Senkron Tarihi']);
+      const casinoSonBahisZamani = parseTRDateTime(r['Casino Son Bahis']);
+      const sporSonBahisZamani = parseTRDateTime(r['Spor Son Bahis']);
       const segment = hesaplaSegment(atanmaZamani, ilkYatZamani);
 
       allRecords.push({
@@ -1877,7 +1842,10 @@ async function handleUpload(suffix){
         isim: String(r['Ad']||'').trim(),
         temsilci: String(r['Personel']||'').trim(),
         telefon: String(r['Telefon']||'').trim(),
+        atanma_tarihi: atanmaZamani ? atanmaZamani.toISOString() : null,
         kayit_tarihi: kayitZamani ? kayitZamani.toISOString().slice(0,10) : null,
+        casino_son_bahis: casinoSonBahisZamani ? casinoSonBahisZamani.toISOString() : null,
+        spor_son_bahis: sporSonBahisZamani ? sporSonBahisZamani.toISOString() : null,
         segment,
         yatirim_adedi: yatirimAdedi,
         toplam_yatirim: toNumEN(r['Toplam Yatırım']),
