@@ -246,14 +246,7 @@
       <div class="page" id="page-yeni-vip"></div>
       <div class="page" id="page-pasif">
         <h1 class="page-title">Pasif Yatırımlı Üyeler</h1>
-        <div class="page-sub">Pasif kontrol CSV'sini yükleyin — Rapor Tarihi ile Son Yatırım Tarihi karşılaştırılarak hesaplanır</div>
-        <div class="upload-box">
-          <div>
-            <input type="file" id="pasifCsvInput" accept=".csv">
-          </div>
-          <button class="btn" onclick="handlePasifCsvUpload()">CSV'yi Yükle</button>
-          <span id="pasifCsvStatus" style="font-size:12px;color:var(--muted)"></span>
-        </div>
+        <div class="page-sub">Yatırımlı/Yatırımsız Gelenler sayfalarına yüklenen verideki Son Yatırım Tarihi baz alınarak otomatik hesaplanır</div>
         <div id="pasif-tabs" style="margin-bottom:16px;"></div>
         <div id="pasif-content"></div>
       </div>
@@ -491,7 +484,6 @@ function showApp(){
   refreshData();
   renderUploadLog();
   loadHatirlatmalar().then(showTodayReminderPopupIfNeeded);
-  loadPasifKontrol();
   loadVipKontrol();
 }
 function resetConnection(){
@@ -640,6 +632,7 @@ function buildIndexes(rows, segmentRows){
   });
   Object.values(historyByLogin).forEach(arr => arr.sort((a,b)=> a.tarih.localeCompare(b.tarih)));
   dateList = Object.keys(latestByDate).sort().reverse();
+  pasifKontrolRows = pasifSatirlariniOlustur();
 }
 function hasSegment(tarih, login, segment){
   return !!(segmentsByDate[tarih] && segmentsByDate[tarih][login] && segmentsByDate[tarih][login].has(segment));
@@ -990,101 +983,48 @@ function temizPhoneAlani(s){
   const m = String(s||'').match(/^="?(.*?)"?$/);
   return m ? m[1] : String(s||'').trim();
 }
-async function loadPasifKontrol(){
-  if(!sb) return;
-  const {data, error} = await sb.from('pasif_kontrol').select('*').order('rapor_tarihi', {ascending:false}).limit(5000);
-  if(error || !data || data.length===0){ pasifKontrolRows = []; return; }
-  const enSonTarih = data[0].rapor_tarihi;
-  pasifKontrolRows = data.filter(r=>r.rapor_tarihi === enSonTarih);
-}
-async function handlePasifCsvUpload(){
-  if(!sb){ document.getElementById('pasifCsvStatus').textContent = 'Önce Ayarlar sayfasından Supabase bağlantısı kurun.'; return; }
-  const fileInput = document.getElementById('pasifCsvInput');
-  const file = fileInput.files[0];
-  const status = document.getElementById('pasifCsvStatus');
-  if(!file){ status.textContent = 'Önce bir CSV dosyası seçin.'; return; }
-  if(typeof Papa === 'undefined'){ status.textContent = 'CSV kütüphanesi yüklenemedi.'; return; }
-
-  status.textContent = 'Okunuyor...';
-  const text = await file.text();
-  const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
-  const rawRows = parsed.data;
-
-  let raporTarihi = null;
-  const kayitlar = [];
-  rawRows.forEach(r => {
-    const login = String(r['Kullanıcı Adı']||'').trim();
-    if(!login) return;
-    const rt = String(r['Rapor Tarihi']||'').trim();
-    if(rt) raporTarihi = rt;
-    const sonYat = parseTRDateTime(r['Son Yatırım Tarihi']);
-    kayitlar.push({
+// Pasif Yatırımlı Üyeler artık ayrı bir CSV yüklemesi ile değil, Yatırımlı/Yatırımsız
+// Gelenler sayfalarına yüklenen gunluk_veri'deki Son Yatırım Tarihi baz alınarak canlı hesaplanır.
+function pasifSatirlariniOlustur(){
+  const bugun = new Date(bugununTarihiTR()+'T00:00:00Z');
+  const raporTarihi = bugununTarihiTR();
+  const out = [];
+  Object.keys(historyByLogin).forEach(login=>{
+    const hist = historyByLogin[login];
+    const latest = hist[hist.length-1];
+    if(!latest || !latest.son_yatirim_zamani) return;
+    const sonYat = new Date(latest.son_yatirim_zamani);
+    const gun = Math.round((bugun - sonYat) / 86400000);
+    out.push({
       login,
-      temsilci: String(r['Personel']||'').trim(),
-      isim: String(r['Ad']||'').trim(),
-      telefon: temizPhoneAlani(r['Telefon']),
-      son_giris: parseTRDateTime(r['Son Giriş']),
-      son_bahis: parseTRDateTime(r['Son Bahis']),
-      casino_son_bahis: parseTRDateTime(r['Casino Son Bahis']),
-      spor_son_bahis: parseTRDateTime(r['Spor Son Bahis']),
-      ilk_yatirim_tarihi: parseTRDateTime(r['İlk Yatırım Tarihi']),
-      son_yatirim_tarihi: sonYat,
-      toplam_yatirim: toNumEN(r['Toplam Yatırım']),
-      yatirim_adedi: toNumEN(r['Yatırım Adedi']),
-      ilk_cekim_tarihi: parseTRDateTime(r['İlk Çekim Tarihi']),
-      ilk_cekim_tutari: toNumEN(r['İlk Çekim Tutarı']),
-      son_cekim_tarihi: parseTRDateTime(r['Son Çekim Tarihi']),
-      toplam_cekim: toNumEN(r['Toplam Çekim']),
-      cekim_adedi: toNumEN(r['Çekim Adedi']),
-      bakiye: toNumEN(r['Bakiye']),
-      _sonYatDate: sonYat
+      temsilci: latest.temsilci,
+      isim: latest.isim,
+      telefon: latest.telefon,
+      son_giris: null,
+      son_bahis: null,
+      casino_son_bahis: latest.casino_son_bahis || null,
+      spor_son_bahis: latest.spor_son_bahis || null,
+      ilk_yatirim_tarihi: latest.ilk_yatirim_zamani || null,
+      son_yatirim_tarihi: latest.son_yatirim_zamani || null,
+      toplam_yatirim: latest.toplam_yatirim,
+      yatirim_adedi: latest.yatirim_adedi,
+      ilk_cekim_tarihi: null,
+      ilk_cekim_tutari: latest.ilk_cekim,
+      son_cekim_tarihi: latest.son_cekim_zamani || null,
+      toplam_cekim: latest.toplam_cekim,
+      cekim_adedi: latest.cekim_adedi,
+      bakiye: latest.bakiye,
+      rapor_tarihi: raporTarihi,
+      gun_sayisi: gun
     });
   });
-
-  if(!raporTarihi){ status.textContent = 'Rapor Tarihi bulunamadı.'; return; }
-  const raporTarihiDate = new Date(raporTarihi);
-
-  const dbRows = kayitlar.map(k=>{
-    const gun = k._sonYatDate ? Math.round((raporTarihiDate - k._sonYatDate) / 86400000) : null;
-    const {_sonYatDate, ...rest} = k;
-    return {
-      ...rest,
-      rapor_tarihi: raporTarihi,
-      son_giris: k.son_giris ? k.son_giris.toISOString() : null,
-      son_bahis: k.son_bahis ? k.son_bahis.toISOString() : null,
-      casino_son_bahis: k.casino_son_bahis ? k.casino_son_bahis.toISOString() : null,
-      spor_son_bahis: k.spor_son_bahis ? k.spor_son_bahis.toISOString() : null,
-      ilk_yatirim_tarihi: k.ilk_yatirim_tarihi ? k.ilk_yatirim_tarihi.toISOString() : null,
-      son_yatirim_tarihi: k.son_yatirim_tarihi ? k.son_yatirim_tarihi.toISOString() : null,
-      ilk_cekim_tarihi: k.ilk_cekim_tarihi ? k.ilk_cekim_tarihi.toISOString() : null,
-      son_cekim_tarihi: k.son_cekim_tarihi ? k.son_cekim_tarihi.toISOString() : null,
-      gun_sayisi: gun
-    };
-  });
-
-  status.textContent = `Yükleniyor... 0/${dbRows.length}`;
-  const chunkSize = 500;
-  for(let i=0;i<dbRows.length;i+=chunkSize){
-    const chunk = dbRows.slice(i, i+chunkSize);
-    const {error} = await sb.from('pasif_kontrol').upsert(chunk, {onConflict:'rapor_tarihi,login'});
-    if(error){ status.textContent = 'Hata: ' + error.message; return; }
-    status.textContent = `Yükleniyor... ${Math.min(i+chunkSize,dbRows.length)}/${dbRows.length}`;
-  }
-  status.textContent = `${dbRows.length} kayıt yüklendi (${raporTarihi}).`;
-  fileInput.value = '';
-  await loadPasifKontrol();
-
-  const esikSayilari = PASIF_GUN_SECENEKLERI.map(e => ({e, c: pasifKontrolRows.filter(r=>r.gun_sayisi===e).length}));
-  const ozet = esikSayilari.map(x=>`${x.e}. gün: ${x.c}`).join(' · ');
-  showToast('⚠️ Pasif Kontrol Güncellendi', ozet, 'pasif', 'pasif');
-
-  renderCurrentPage('pasif');
+  return out;
 }
 function renderPasifKontrolContent(){
   const content = document.getElementById('pasif-content');
   if(!content) return;
   if(pasifKontrolRows.length===0){
-    content.innerHTML = '<div class="empty">Henüz pasif kontrol CSV\'si yüklenmedi.</div>';
+    content.innerHTML = '<div class="empty">Son Yatırım Tarihi olan üye bulunamadı. Önce Yatırımlı/Yatırımsız Gelenler sayfalarından veri yükleyin.</div>';
     return;
   }
   const raporTarihi = pasifKontrolRows[0].rapor_tarihi;
@@ -1829,8 +1769,8 @@ async function handleUpload(suffix){
 
       const kayitZamani = parseTRDateTime(r['Kayıt Tarihi']);
       const ilkYatZamani = parseTRDateTime(r['İlk Yatırım Tarihi']);
-      if(suffix==='Yatirimli' && !ilkYatZamani){ atlananSifirYatirim++; return; }
       const sonYatZamani = parseTRDateTime(r['Son Yatırım Tarihi']);
+      if(!sonYatZamani){ atlananSifirYatirim++; return; }
       const sonCekZamani = parseTRDateTime(r['Son Çekim Tarihi']);
       const senkronZamani = parseTRDateTime(r['Senkron Tarihi']);
       const casinoSonBahisZamani = parseTRDateTime(r['Casino Son Bahis']);
@@ -1881,7 +1821,7 @@ async function handleUpload(suffix){
   document.getElementById('uploadPreviewText'+suffix).innerHTML = `
     <b>${files.length}</b> dosyadan <b>${allRecords.length}</b> üye okundu (hepsi <b>${segAdi}</b> segmentine yazılacak), <b>${tarihler.length}</b> farklı tarihe dağıtıldı:<br>
     ${tarihSatirlari}<br><br>
-    ${suffix==='Yatirimli' ? `İlk Yatırım Tarihi boş olduğu için atlanan: ${atlananSifirYatirim}<br>` : ''}${tarihsizAtlanan?`Tarihi belirlenemediği için atlanan (Atanma Tarihi boş, yedek tarih de seçilmemiş): ${tarihsizAtlanan}`:''}
+    Son Yatırım Tarihi boş olduğu için atlanan: ${atlananSifirYatirim}<br>${tarihsizAtlanan?`Tarihi belirlenemediği için atlanan (Atanma Tarihi boş, yedek tarih de seçilmemiş): ${tarihsizAtlanan}`:''}
   `;
   document.getElementById('uploadPreview'+suffix).style.display = 'block';
 }
