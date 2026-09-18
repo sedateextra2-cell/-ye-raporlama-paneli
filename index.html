@@ -1829,13 +1829,14 @@ async function handleUpload(suffix){
 
       const kayitZamani = parseTRDateTime(r['Kayıt Tarihi']);
       const ilkYatZamani = parseTRDateTime(r['İlk Yatırım Tarihi']);
-      if(!ilkYatZamani){ atlananSifirYatirim++; return; }
+      if(suffix==='Yatirimli' && !ilkYatZamani){ atlananSifirYatirim++; return; }
       const sonYatZamani = parseTRDateTime(r['Son Yatırım Tarihi']);
       const sonCekZamani = parseTRDateTime(r['Son Çekim Tarihi']);
       const senkronZamani = parseTRDateTime(r['Senkron Tarihi']);
       const casinoSonBahisZamani = parseTRDateTime(r['Casino Son Bahis']);
       const sporSonBahisZamani = parseTRDateTime(r['Spor Son Bahis']);
-      const segment = hesaplaSegment(atanmaZamani, ilkYatZamani);
+      // Segment artık hesaplanmıyor — hangi yükleme sayfasından geldiyse doğrudan o segmente yazılır.
+      const segment = suffix==='Yatirimli' ? 'yatirimli' : 'yatirimsiz';
 
       allRecords.push({
         tarih, login,
@@ -1864,7 +1865,7 @@ async function handleUpload(suffix){
     status.textContent = `Okunuyor... (${fi+1}/${files.length} dosya)`;
   }
 
-  if(allRecords.length===0){ status.textContent='İşlenecek (en az 1 yatırımı olan, tarihi belirlenebilen) üye bulunamadı.'; return; }
+  if(allRecords.length===0){ status.textContent='İşlenecek, tarihi belirlenebilen üye bulunamadı.'; return; }
 
   const tarihGruplari = {};
   allRecords.forEach(r=>{ (tarihGruplari[r.tarih] ||= []).push(r); });
@@ -1872,15 +1873,15 @@ async function handleUpload(suffix){
 
   pendingUploads[suffix] = {records: allRecords, fileName: files.map(f=>f.name).join(', ')};
   status.textContent = '';
+  const segAdi = suffix==='Yatirimli' ? 'yatırımlı' : 'yatırımsız';
   const tarihSatirlari = tarihler.map(t=>{
     const grup = tarihGruplari[t];
-    const yatirimli = grup.filter(r=>r.segment==='yatirimli').length;
-    return `• ${t}: ${grup.length} üye (${yatirimli} yatırımlı, ${grup.length-yatirimli} yatırımsız)`;
+    return `• ${t}: ${grup.length} üye`;
   }).join('<br>');
   document.getElementById('uploadPreviewText'+suffix).innerHTML = `
-    <b>${files.length}</b> dosyadan <b>${allRecords.length}</b> yatırımlı üye okundu, <b>${tarihler.length}</b> farklı tarihe dağıtıldı:<br>
+    <b>${files.length}</b> dosyadan <b>${allRecords.length}</b> üye okundu (hepsi <b>${segAdi}</b> segmentine yazılacak), <b>${tarihler.length}</b> farklı tarihe dağıtıldı:<br>
     ${tarihSatirlari}<br><br>
-    0 yatırımlı olduğu için atlanan: ${atlananSifirYatirim}${tarihsizAtlanan?`<br>Tarihi belirlenemediği için atlanan (Atanma Tarihi boş, yedek tarih de seçilmemiş): ${tarihsizAtlanan}`:''}
+    ${suffix==='Yatirimli' ? `İlk Yatırım Tarihi boş olduğu için atlanan: ${atlananSifirYatirim}<br>` : ''}${tarihsizAtlanan?`Tarihi belirlenemediği için atlanan (Atanma Tarihi boş, yedek tarih de seçilmemiş): ${tarihsizAtlanan}`:''}
   `;
   document.getElementById('uploadPreview'+suffix).style.display = 'block';
 }
