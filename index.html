@@ -232,12 +232,12 @@
       <div class="page" id="page-yatirimli"></div>
       <div class="page" id="page-vip">
         <h1 class="page-title">VIP Üyeler</h1>
-        <div class="page-sub">VIP kontrol CSV'sini yükleyin — Toplam Yatırım'a göre otomatik sınıflandırılır</div>
+        <div class="page-sub">VIP kontrol Excel'ini yükleyin — Toplam Yatırım'a göre otomatik sınıflandırılır</div>
         <div class="upload-box">
           <div>
-            <input type="file" id="vipCsvInput" accept=".csv">
+            <input type="file" id="vipCsvInput" accept=".xlsx">
           </div>
-          <button class="btn" onclick="handleVipCsvUpload()">CSV'yi Yükle</button>
+          <button class="btn" onclick="handleVipCsvUpload()">Excel'i Yükle</button>
           <span id="vipCsvStatus" style="font-size:12px;color:var(--muted)"></span>
         </div>
         <div id="vip-tabs" style="margin-bottom:16px;"></div>
@@ -561,6 +561,26 @@ function toNum(v){
 }
 function fmtMoney(n){ return (n||0).toLocaleString('tr-TR',{maximumFractionDigits:0}) + ' ₺'; }
 function fmtInt(n){ return (n||0).toLocaleString('tr-TR'); }
+function toNumTRY(v){
+  if(v===undefined||v===null||v==='') return 0;
+  if(typeof v==='number') return v;
+  return toNum(String(v).replace(/[₺\s]/g,''));
+}
+const TR_AY_KISA = {'Oca':0,'Şub':1,'Mar':2,'Nis':3,'May':4,'Haz':5,'Tem':6,'Ağu':7,'Eyl':8,'Eki':9,'Kas':10,'Ara':11};
+function parseTRDateKisaAy(s){
+  if(!s) return null;
+  const str = String(s).trim();
+  const m = str.match(/^(\d{1,2})\s+([A-Za-zÇŞĞÜÖİçşğüöı]+)\s+(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
+  if(!m) return null;
+  const gun = parseInt(m[1],10), yil = parseInt(m[3],10);
+  const ay = TR_AY_KISA[m[2]];
+  if(ay===undefined) return null;
+  const saat = m[4]?parseInt(m[4],10):0, dakika = m[5]?parseInt(m[5],10):0;
+  return new Date(Date.UTC(yil, ay, gun, saat, dakika, 0));
+}
+function bugununTarihiTR(){
+  return new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Istanbul', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
+}
 
 /* ================= NAVİGASYON ================= */
 function goPage(page){
@@ -1216,67 +1236,47 @@ async function handleVipCsvUpload(){
   const fileInput = document.getElementById('vipCsvInput');
   const file = fileInput.files[0];
   const status = document.getElementById('vipCsvStatus');
-  if(!file){ status.textContent = 'Önce bir CSV dosyası seçin.'; return; }
-  if(typeof Papa === 'undefined'){ status.textContent = 'CSV kütüphanesi yüklenemedi.'; return; }
+  if(!file){ status.textContent = 'Önce bir Excel dosyası seçin.'; return; }
+  if(typeof XLSX === 'undefined'){ status.textContent = 'Excel kütüphanesi yüklenemedi.'; return; }
 
   status.textContent = 'Okunuyor...';
-  const text = await file.text();
-  const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
-  const rawRows = parsed.data;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+  const sheetName = wb.SheetNames[0];
+  const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:''});
 
-  let raporTarihi = null;
+  const raporTarihi = bugununTarihiTR();
   const dbRows = [];
   rawRows.forEach(r => {
     const login = String(r['Kullanıcı Adı']||'').trim();
     if(!login) return;
-    const rt = String(r['Rapor Tarihi']||'').trim();
-    if(rt) raporTarihi = rt;
+    const kayitZamani = parseTRDateKisaAy(r['Kayıt']);
+    const ilkYatZamani = parseTRDateKisaAy(r['İlk yatırım']);
     dbRows.push({
       login,
       temsilci: String(r['Personel']||'').trim(),
-      isim: String(r['Ad']||'').trim(),
+      isim: String(r['İsim']||'').trim(),
       telefon: temizPhoneAlani(r['Telefon']),
-      son_giris: parseTRDateTime(r['Son Giriş']),
-      son_bahis: parseTRDateTime(r['Son Bahis']),
-      casino_son_bahis: parseTRDateTime(r['Casino Son Bahis']),
-      spor_son_bahis: parseTRDateTime(r['Spor Son Bahis']),
-      ilk_yatirim_tarihi: parseTRDateTime(r['İlk Yatırım Tarihi']),
-      son_yatirim_tarihi: parseTRDateTime(r['Son Yatırım Tarihi']),
-      toplam_yatirim: toNumEN(r['Toplam Yatırım']),
-      yatirim_adedi: toNumEN(r['Yatırım Adedi']),
-      ilk_cekim_tarihi: parseTRDateTime(r['İlk Çekim Tarihi']),
-      ilk_cekim_tutari: toNumEN(r['İlk Çekim Tutarı']),
-      son_cekim_tarihi: parseTRDateTime(r['Son Çekim Tarihi']),
-      toplam_cekim: toNumEN(r['Toplam Çekim']),
-      cekim_adedi: toNumEN(r['Çekim Adedi']),
-      bakiye: toNumEN(r['Bakiye'])
+      durum: String(r['Durum']||'').trim(),
+      liste: String(r['Liste']||'').trim(),
+      kayit_tarihi: kayitZamani ? kayitZamani.toISOString() : null,
+      ilk_yatirim_tarihi: ilkYatZamani ? ilkYatZamani.toISOString() : null,
+      toplam_yatirim: toNumTRY(r['Toplam yatırım']),
+      rapor_tarihi: raporTarihi
     });
   });
 
-  if(!raporTarihi){ status.textContent = 'Rapor Tarihi bulunamadı.'; return; }
+  if(dbRows.length===0){ status.textContent = 'Dosyada geçerli kayıt bulunamadı.'; return; }
 
-  const finalRows = dbRows.map(k => ({
-    ...k,
-    rapor_tarihi: raporTarihi,
-    son_giris: k.son_giris ? k.son_giris.toISOString() : null,
-    son_bahis: k.son_bahis ? k.son_bahis.toISOString() : null,
-    casino_son_bahis: k.casino_son_bahis ? k.casino_son_bahis.toISOString() : null,
-    spor_son_bahis: k.spor_son_bahis ? k.spor_son_bahis.toISOString() : null,
-    ilk_yatirim_tarihi: k.ilk_yatirim_tarihi ? k.ilk_yatirim_tarihi.toISOString() : null,
-    son_yatirim_tarihi: k.son_yatirim_tarihi ? k.son_yatirim_tarihi.toISOString() : null,
-    ilk_cekim_tarihi: k.ilk_cekim_tarihi ? k.ilk_cekim_tarihi.toISOString() : null,
-    son_cekim_tarihi: k.son_cekim_tarihi ? k.son_cekim_tarihi.toISOString() : null
-  }));
-
-  status.textContent = `Yükleniyor... 0/${finalRows.length}`;
+  status.textContent = `Yükleniyor... 0/${dbRows.length}`;
   const chunkSize = 500;
-  for(let i=0;i<finalRows.length;i+=chunkSize){
-    const chunk = finalRows.slice(i, i+chunkSize);
+  for(let i=0;i<dbRows.length;i+=chunkSize){
+    const chunk = dbRows.slice(i, i+chunkSize);
     const {error} = await sb.from('vip_kontrol').upsert(chunk, {onConflict:'rapor_tarihi,login'});
     if(error){ status.textContent = 'Hata: ' + error.message; return; }
-    status.textContent = `Yükleniyor... ${Math.min(i+chunkSize,finalRows.length)}/${finalRows.length}`;
+    status.textContent = `Yükleniyor... ${Math.min(i+chunkSize,dbRows.length)}/${dbRows.length}`;
   }
-  status.textContent = `${finalRows.length} kayıt yüklendi (${raporTarihi}).`;
+  status.textContent = `${dbRows.length} kayıt yüklendi (${raporTarihi}).`;
   fileInput.value = '';
   await loadVipKontrol();
 
@@ -1344,12 +1344,14 @@ function renderVipKontrolContent(){
             <button class="btn secondary" onclick="exportVipPasifKombine('${safeT}')">Kombine İndir (VIP+Pasif)</button>
           </div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Login</th><th>Ad</th><th>Telefon</th><th>Toplam Yatırım</th><th>Son Yatırım</th><th>Bakiye</th></tr></thead><tbody>
+        <div class="table-wrap"><table><thead><tr><th>Login</th><th>Ad</th><th>Telefon</th><th>Durum</th><th>Kayıt Tarihi</th><th>İlk Yatırım</th><th>Toplam Yatırım</th><th>Liste</th></tr></thead><tbody>
           ${list.map(r=>`<tr>
             <td>${r.login}</td><td>${r.isim||''}</td><td>${r.telefon||''}</td>
+            <td>${r.durum||''}</td>
+            <td>${r.kayit_tarihi ? new Date(r.kayit_tarihi).toLocaleString('tr-TR') : ''}</td>
+            <td>${r.ilk_yatirim_tarihi ? new Date(r.ilk_yatirim_tarihi).toLocaleString('tr-TR') : ''}</td>
             <td>${fmtMoney(r.toplam_yatirim)}</td>
-            <td>${r.son_yatirim_tarihi ? new Date(r.son_yatirim_tarihi).toLocaleString('tr-TR') : ''}</td>
-            <td>${fmtMoney(r.bakiye)}</td>
+            <td>${r.liste||''}</td>
           </tr>`).join('')}
         </tbody></table></div>
       </div>`;
@@ -1362,7 +1364,13 @@ async function exportVipPasifKombine(temsilci){
   let pasifRows = pasifKontrolRows.filter(r => PASIF_GUN_SECENEKLERI.includes(r.gun_sayisi));
   if(temsilci){ vipRows = vipRows.filter(r=>r.temsilci===temsilci); pasifRows = pasifRows.filter(r=>r.temsilci===temsilci); }
   if(vipRows.length===0 && pasifRows.length===0){ alert('Aktarılacak veri yok.'); return; }
-  const ortakAlanlar = r => ({
+  const vipAlanlar = r => ({
+    Telefon: r.telefon, Personel: r.temsilci, Ad: r.isim, 'Kullanıcı Adı': r.login,
+    'Durum': r.durum || '', 'Kayıt Tarihi': r.kayit_tarihi || '',
+    'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '', 'Toplam Yatırım': r.toplam_yatirim,
+    'Liste': r.liste || ''
+  });
+  const pasifAlanlar = r => ({
     Telefon: r.telefon, Personel: r.temsilci, Ad: r.isim, 'Kullanıcı Adı': r.login,
     'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '', 'Son Yatırım Tarihi': r.son_yatirim_tarihi || '',
     'Yatırım Adedi': r.yatirim_adedi, 'Toplam Yatırım': r.toplam_yatirim,
@@ -1371,8 +1379,8 @@ async function exportVipPasifKombine(temsilci){
     'Casino Son Bahis': r.casino_son_bahis || '', 'Spor Son Bahis': r.spor_son_bahis || '',
     'Bakiye': r.bakiye
   });
-  const vipExportRows = vipRows.map(ortakAlanlar);
-  const pasifExportRows = pasifRows.map(r => ({...ortakAlanlar(r), 'Kaç Gündür Pasif': r.gun_sayisi + ' gün'}));
+  const vipExportRows = vipRows.map(vipAlanlar);
+  const pasifExportRows = pasifRows.map(r => ({...pasifAlanlar(r), 'Kaç Gündür Pasif': r.gun_sayisi + ' gün'}));
   const raporTarihi = (vipRows[0] || pasifRows[0] || {}).rapor_tarihi || '';
   const dosyaAdi = temsilci ? `vip_pasif_kombine_${temsilci}_${raporTarihi}.xlsx` : `vip_pasif_kombine_tumu_${raporTarihi}.xlsx`;
   await writeStyledWorkbook([
@@ -1390,20 +1398,11 @@ async function exportVipKontrol(temsilci){
     Personel: r.temsilci,
     Ad: r.isim,
     'Kullanıcı Adı': r.login,
-    'Durum': '',
+    'Durum': r.durum || '',
+    'Kayıt Tarihi': r.kayit_tarihi || '',
     'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '',
-    'Son Yatırım Tarihi': r.son_yatirim_tarihi || '',
-    'Yatırım Adedi': r.yatirim_adedi,
     'Toplam Yatırım': r.toplam_yatirim,
-    'Son Çekim Tarihi': r.son_cekim_tarihi || '',
-    'Toplam Çekim': r.toplam_cekim,
-    'Çekim Adedi': r.cekim_adedi,
-    'Son Giriş': r.son_giris || '',
-    'Son Bahis': r.son_bahis || '',
-    'Casino Son Bahis': r.casino_son_bahis || '',
-    'Spor Son Bahis': r.spor_son_bahis || '',
-    'Bakiye': r.bakiye,
-    'Kaç Gündür Pasif': ''
+    'Liste': r.liste || ''
   }));
   const dosyaAdi = temsilci ? `vip_${vipAktifTab}_${temsilci}_${raporTarihi}.xlsx` : `vip_${vipAktifTab}_tumu_${raporTarihi}.xlsx`;
   await writeStyledWorkbook([{name:'VIP Kontrol', color:'FF9C7A1E', rows: exportRows}], dosyaAdi);
