@@ -1246,25 +1246,38 @@ async function handleVipCsvUpload(){
   const rawRows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:''});
 
   const raporTarihi = bugununTarihiTR();
-  const dbRows = [];
+  const dbRowsMap = new Map();
   rawRows.forEach(r => {
     const login = String(r['Kullanıcı Adı']||'').trim();
     if(!login) return;
     const kayitZamani = parseTRDateKisaAy(r['Kayıt']);
     const ilkYatZamani = parseTRDateKisaAy(r['İlk yatırım']);
-    dbRows.push({
+    const liste = String(r['Liste']||'').trim();
+    const yeniSatir = {
       login,
       temsilci: String(r['Personel']||'').trim(),
       isim: String(r['İsim']||'').trim(),
       telefon: temizPhoneAlani(r['Telefon']),
       durum: String(r['Durum']||'').trim(),
-      liste: String(r['Liste']||'').trim(),
+      liste,
       kayit_tarihi: kayitZamani ? kayitZamani.toISOString() : null,
       ilk_yatirim_tarihi: ilkYatZamani ? ilkYatZamani.toISOString() : null,
       toplam_yatirim: toNumTRY(r['Toplam yatırım']),
       rapor_tarihi: raporTarihi
-    });
+    };
+    // Aynı login birden fazla listede (Karşılama + Hoş Geldin vb.) geçebilir.
+    // Aynı rapor_tarihi+login için tek satır kalmalı: liste adlarını birleştir, en güncel/yüksek değerleri koru.
+    const mevcut = dbRowsMap.get(login);
+    if(!mevcut){
+      dbRowsMap.set(login, yeniSatir);
+    } else {
+      mevcut.liste = [...new Set([mevcut.liste, liste].filter(Boolean))].join(', ');
+      if(yeniSatir.toplam_yatirim > mevcut.toplam_yatirim) mevcut.toplam_yatirim = yeniSatir.toplam_yatirim;
+      if(yeniSatir.ilk_yatirim_tarihi && (!mevcut.ilk_yatirim_tarihi || yeniSatir.ilk_yatirim_tarihi < mevcut.ilk_yatirim_tarihi)) mevcut.ilk_yatirim_tarihi = yeniSatir.ilk_yatirim_tarihi;
+      if(yeniSatir.kayit_tarihi && (!mevcut.kayit_tarihi || yeniSatir.kayit_tarihi < mevcut.kayit_tarihi)) mevcut.kayit_tarihi = yeniSatir.kayit_tarihi;
+    }
   });
+  const dbRows = [...dbRowsMap.values()];
 
   if(dbRows.length===0){ status.textContent = 'Dosyada geçerli kayıt bulunamadı.'; return; }
 
