@@ -1126,12 +1126,23 @@ function renderPasifTabs(){
   wrap.innerHTML = html;
 }
 let vipKontrolRows = [];
-let vipAktifTab = 'vip'; // 'vip' | 'yaklasan' | 'terfi' | 'tumu'
+let vipAktifTab = 'vip'; // 'vip' | 'yaklasan' | 'terfi' | 'tumu' | 'yeni'
+let ilkVipTarihiByLogin = {}; // login -> rapor_tarihi (ilk kez eşiği geçtiği gün)
 async function loadVipKontrol(){
   if(!sb) return;
-  const {data, error} = await sb.from('vip_kontrol').select('*').order('rapor_tarihi', {ascending:false}).limit(5000);
-  if(error || !data || data.length===0){ vipKontrolRows = []; return; }
-  const enSonTarih = data[0].rapor_tarihi;
+  // Son 90 günlük tüm VIP Kontrol geçmişini çekiyoruz (sadece son gün değil) —
+  // "İlk VIP Olma Tarihi"ni hesaplayabilmek için geçmiş yüklemelere ihtiyacımız var.
+  const since = new Date(); since.setDate(since.getDate()-90);
+  const sinceStr = since.toISOString().slice(0,10);
+  const {data, error} = await sb.from('vip_kontrol').select('*').gte('rapor_tarihi', sinceStr).order('rapor_tarihi', {ascending:true}).limit(20000);
+  if(error || !data || data.length===0){ vipKontrolRows = []; ilkVipTarihiByLogin = {}; return; }
+  ilkVipTarihiByLogin = {};
+  data.forEach(r=>{
+    if(r.toplam_yatirim >= VIP_ESIK && !ilkVipTarihiByLogin[r.login]){
+      ilkVipTarihiByLogin[r.login] = r.rapor_tarihi;
+    }
+  });
+  const enSonTarih = data[data.length-1].rapor_tarihi;
   vipKontrolRows = data.filter(r=>r.rapor_tarihi === enSonTarih);
 }
 async function handleVipCsvUpload(){
@@ -1210,14 +1221,24 @@ function setVipTab(t){
 function renderVipTabs(){
   const wrap = document.getElementById('vip-tabs');
   if(!wrap) return;
-  const secenekler = [['vip','VIP Üyeler'],['yaklasan','Statüsüne Yaklaşan'],['terfi','Terfiye Yaklaşan'],['tumu','Tümü']];
+  const secenekler = [['vip','VIP Üyeler'],['yeni','Yeni VIP'],['yaklasan','Statüsüne Yaklaşan'],['terfi','Terfiye Yaklaşan'],['tumu','Tümü']];
   wrap.innerHTML = secenekler.map(([k,l])=>{
     const active = k === vipAktifTab;
     return `<button class="btn ${active?'':'secondary'}" style="margin-right:8px;" onclick="setVipTab('${k}')">${l}</button>`;
   }).join('');
 }
+const YENI_VIP_GUN_PENCERESI = 7; // son kaç gün içinde ilk kez eşiği geçenler "Yeni VIP" sayılsın
 function vipTabRows(tab){
   if(tab==='vip') return vipKontrolRows.filter(r=>r.toplam_yatirim >= VIP_ESIK);
+  if(tab==='yeni'){
+    const bugun = new Date(bugununTarihiTR()+'T00:00:00Z');
+    return vipKontrolRows.filter(r=>{
+      const ilkTarih = ilkVipTarihiByLogin[r.login];
+      if(!ilkTarih) return false;
+      const gun = Math.round((bugun - new Date(ilkTarih+'T00:00:00Z')) / 86400000);
+      return gun >= 0 && gun <= YENI_VIP_GUN_PENCERESI;
+    });
+  }
   if(tab==='yaklasan') return vipKontrolRows.filter(r=>tierFor(r.toplam_yatirim));
   if(tab==='terfi') return vipKontrolRows.filter(r=>isTerfiYaklasan(r.toplam_yatirim));
   return vipKontrolRows.filter(r=>r.toplam_yatirim >= VIP_ESIK || tierFor(r.toplam_yatirim) || isTerfiYaklasan(r.toplam_yatirim));
@@ -1226,7 +1247,7 @@ function renderVipKontrolContent(){
   const content = document.getElementById('vip-content');
   if(!content) return;
   if(vipKontrolRows.length===0){
-    content.innerHTML = '<div class="empty">Henüz VIP kontrol CSV\'si yüklenmedi.</div>';
+    content.innerHTML = '<div class="empty">Henüz VIP kontrol Excel\'i yüklenmedi.</div>';
     return;
   }
   const raporTarihi = vipKontrolRows[0].rapor_tarihi;
@@ -1238,9 +1259,10 @@ function renderVipKontrolContent(){
     grouped[k].push(r);
   });
   const temsilciler = Object.keys(grouped).sort((a,b)=>a.localeCompare(b,'tr'));
-  const baslik = {vip:'VIP Üyeler', yaklasan:'VIP Statüsüne Yaklaşan Üyeler', terfi:'VIP Terfiye Yaklaşan Üyeler', tumu:'VIP Üyeler — Tümü'}[vipAktifTab];
+  const baslik = {vip:'VIP Üyeler', yeni:'Yeni VIP Üyeler', yaklasan:'VIP Statüsüne Yaklaşan Üyeler', terfi:'VIP Terfiye Yaklaşan Üyeler', tumu:'VIP Üyeler — Tümü'}[vipAktifTab];
+  const bugun = bugununTarihiTR();
 
-  let html = `<h1 class="page-title">${baslik}</h1><div class="page-sub">Rapor Tarihi: ${raporTarihi} · ${rows.length} üye</div>`;
+  let html = `<h1 class="page-title">${baslik}</h1><div class="page-sub">Rapor Tarihi: ${raporTarihi} · ${rows.length} üye${vipAktifTab==='yeni' ? ` · Son ${YENI_VIP_GUN_PENCERESI} gün içinde ilk kez eşiği geçenler` : ''}</div>`;
   html += `<div class="toolbar" style="justify-content:flex-end;">
     <button class="btn secondary" onclick="exportVipKontrol(null)">Hepsini İndir</button>
     <button class="btn" onclick="exportVipPasifKombine(null)">Tümü Kombine İndir (VIP+Pasif)</button>
@@ -1250,7 +1272,11 @@ function renderVipKontrolContent(){
     html += '<div class="empty">Bu kritere uyan üye yok.</div>';
   } else {
     temsilciler.forEach(t=>{
-      const list = grouped[t].slice().sort((a,b)=>b.toplam_yatirim-a.toplam_yatirim);
+      const list = grouped[t].slice().sort((a,b)=>{
+        const ta = ilkVipTarihiByLogin[a.login] || '', tb = ilkVipTarihiByLogin[b.login] || '';
+        if(ta !== tb) return tb.localeCompare(ta); // en yeni VIP üstte
+        return b.toplam_yatirim - a.toplam_yatirim;
+      });
       const safeT = t.replace(/'/g,"\\'");
       html += `<div style="margin-top:22px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -1260,15 +1286,20 @@ function renderVipKontrolContent(){
             <button class="btn secondary" onclick="exportVipPasifKombine('${safeT}')">Kombine İndir (VIP+Pasif)</button>
           </div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Login</th><th>Ad</th><th>Telefon</th><th>Durum</th><th>Kayıt Tarihi</th><th>İlk Yatırım</th><th>Toplam Yatırım</th><th>Liste</th></tr></thead><tbody>
-          ${list.map(r=>`<tr>
-            <td>${r.login}</td><td>${r.isim||''}</td><td>${r.telefon||''}</td>
+        <div class="table-wrap"><table><thead><tr><th>Login</th><th>Ad</th><th>Telefon</th><th>Durum</th><th>İlk VIP Tarihi</th><th>Kayıt Tarihi</th><th>İlk Yatırım</th><th>Toplam Yatırım</th><th>Liste</th></tr></thead><tbody>
+          ${list.map(r=>{
+            const ilkVip = ilkVipTarihiByLogin[r.login];
+            const yeniMi = ilkVip === bugun;
+            return `<tr>
+            <td>${r.login}${yeniMi?'<span class="badge yeni">YENİ</span>':''}</td><td>${r.isim||''}</td><td>${r.telefon||''}</td>
             <td>${r.durum||''}</td>
+            <td>${ilkVip||''}</td>
             <td>${r.kayit_tarihi ? new Date(r.kayit_tarihi).toLocaleString('tr-TR') : ''}</td>
             <td>${r.ilk_yatirim_tarihi ? new Date(r.ilk_yatirim_tarihi).toLocaleString('tr-TR') : ''}</td>
             <td>${fmtMoney(r.toplam_yatirim)}</td>
             <td>${r.liste||''}</td>
-          </tr>`).join('')}
+          </tr>`;
+          }).join('')}
         </tbody></table></div>
       </div>`;
     });
@@ -1315,6 +1346,7 @@ async function exportVipKontrol(temsilci){
     Ad: r.isim,
     'Kullanıcı Adı': r.login,
     'Durum': r.durum || '',
+    'İlk VIP Tarihi': ilkVipTarihiByLogin[r.login] || '',
     'Kayıt Tarihi': r.kayit_tarihi || '',
     'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '',
     'Toplam Yatırım': r.toplam_yatirim,
