@@ -1216,24 +1216,14 @@ function setVipTab(t){
 function renderVipTabs(){
   const wrap = document.getElementById('vip-tabs');
   if(!wrap) return;
-  const secenekler = [['vip','VIP Üyeler'],['yeni','Yeni VIP'],['yaklasan','Statüsüne Yaklaşan'],['terfi','Terfiye Yaklaşan'],['tumu','Tümü']];
+  const secenekler = [['vip','VIP Üyeler'],['yaklasan','Statüsüne Yaklaşan'],['terfi','Terfiye Yaklaşan'],['tumu','Tümü']];
   wrap.innerHTML = secenekler.map(([k,l])=>{
     const active = k === vipAktifTab;
     return `<button class="btn ${active?'':'secondary'}" style="margin-right:8px;" onclick="setVipTab('${k}')">${l}</button>`;
   }).join('');
 }
-const YENI_VIP_GUN_PENCERESI = 7; // son kaç gün içinde ilk kez eşiği geçenler "Yeni VIP" sayılsın
 function vipTabRows(tab){
   if(tab==='vip') return vipKontrolRows.filter(r=>r.toplam_yatirim >= VIP_ESIK);
-  if(tab==='yeni'){
-    const bugun = new Date(bugununTarihiTR()+'T00:00:00Z');
-    return vipKontrolRows.filter(r=>{
-      const ilkTarih = ilkVipTarihiByLogin[r.login];
-      if(!ilkTarih) return false;
-      const gun = Math.round((bugun - new Date(ilkTarih+'T00:00:00Z')) / 86400000);
-      return gun >= 0 && gun <= YENI_VIP_GUN_PENCERESI;
-    });
-  }
   if(tab==='yaklasan') return vipKontrolRows.filter(r=>tierFor(r.toplam_yatirim));
   if(tab==='terfi') return vipKontrolRows.filter(r=>isTerfiYaklasan(r.toplam_yatirim));
   return vipKontrolRows.filter(r=>r.toplam_yatirim >= VIP_ESIK || tierFor(r.toplam_yatirim) || isTerfiYaklasan(r.toplam_yatirim));
@@ -1254,10 +1244,10 @@ function renderVipKontrolContent(){
     grouped[k].push(r);
   });
   const temsilciler = Object.keys(grouped).sort((a,b)=>a.localeCompare(b,'tr'));
-  const baslik = {vip:'VIP Üyeler', yeni:'Yeni VIP Üyeler', yaklasan:'VIP Statüsüne Yaklaşan Üyeler', terfi:'VIP Terfiye Yaklaşan Üyeler', tumu:'VIP Üyeler — Tümü'}[vipAktifTab];
+  const baslik = {vip:'VIP Üyeler', yaklasan:'VIP Statüsüne Yaklaşan Üyeler', terfi:'VIP Terfiye Yaklaşan Üyeler', tumu:'VIP Üyeler — Tümü'}[vipAktifTab];
   const bugun = bugununTarihiTR();
 
-  let html = `<h1 class="page-title">${baslik}</h1><div class="page-sub">Rapor Tarihi: ${raporTarihi} · ${rows.length} üye${vipAktifTab==='yeni' ? ` · Son ${YENI_VIP_GUN_PENCERESI} gün içinde ilk kez eşiği geçenler` : ''}</div>`;
+  let html = `<h1 class="page-title">${baslik}</h1><div class="page-sub">Rapor Tarihi: ${raporTarihi} · ${rows.length} üye</div>`;
   html += `<div class="toolbar" style="justify-content:flex-end;">
     <button class="btn secondary" onclick="exportVipKontrol(null)">Hepsini İndir</button>
     <button class="btn" onclick="exportVipPasifKombine(null)">Tümü Kombine İndir (VIP+Pasif)</button>
@@ -1350,45 +1340,43 @@ async function exportVipKontrol(temsilci){
   const dosyaAdi = temsilci ? `vip_${vipAktifTab}_${temsilci}_${raporTarihi}.xlsx` : `vip_${vipAktifTab}_tumu_${raporTarihi}.xlsx`;
   await writeStyledWorkbook([{name:'VIP Kontrol', color:'FF9C7A1E', rows: exportRows}], dosyaAdi);
 }
-function getYeniVipCandidates(viewDate){
-  const idx = dateList.indexOf(viewDate);
-  const prevDate = idx >= 0 ? dateList[idx+1] : null;
-  const dayData = latestByDate[viewDate] || {};
-  const prevData = prevDate ? (latestByDate[prevDate]||{}) : {};
-  return Object.values(dayData).filter(r => r.toplam_yatirim >= VIP_ESIK && (!prevData[r.login] || prevData[r.login].toplam_yatirim < VIP_ESIK));
+function getYeniVipCandidates(){
+  const bugun = bugununTarihiTR();
+  return vipKontrolRows.filter(r => r.toplam_yatirim >= VIP_ESIK && ilkVipTarihiByLogin[r.login] === bugun);
 }
 async function exportKombine(temsilci){
-  const viewDate = document.getElementById('viewDate').value;
-  const vipRows = getYeniVipCandidates(viewDate).filter(r => !temsilci || r.temsilci === temsilci);
-  const pasifRows = pasifKontrolRows.filter(r => PASIF_GUN_SECENEKLERI.includes(r.gun_sayisi)).filter(r => !temsilci || r.temsilci === temsilci);
+  let vipRows = getYeniVipCandidates();
+  let pasifRows = pasifKontrolRows.filter(r => PASIF_GUN_SECENEKLERI.includes(r.gun_sayisi));
+  if(temsilci){ vipRows = vipRows.filter(r=>r.temsilci===temsilci); pasifRows = pasifRows.filter(r=>r.temsilci===temsilci); }
   if(vipRows.length===0 && pasifRows.length===0){ alert('Aktarılacak veri yok.'); return; }
-  const vipExportRows = vipRows.map(r => ({
-    Temsilci: r.temsilci, Login: r.login, Telefon: r.telefon, 'Kayıt Tarihi': r.kayit_tarihi,
-    'Yatırım Adedi': r.yatirim_adedi, 'Toplam Yatırım': r.toplam_yatirim, 'İlk Yatırım': r.ilk_yatirim,
-    'Çekim Adedi': r.cekim_adedi, 'Toplam Çekim': r.toplam_cekim, 'İlk Çekim': r.ilk_cekim,
-    'Son Yatırım Tarihi': lastIncreaseDate(r.login, viewDate)||'',
-    'Son Çekim Tarihi': lastWithdrawalDate(r.login, viewDate)||'',
-    'VIP Kontrol': r.vip_kontrol||'', 'Hediye Hakkı': r.hediye_hakki||'',
-    'Kaynak': memberSourceLabelHistoric(r.login, viewDate)
-  }));
-  const pasifExportRows = pasifRows.map(r => ({
-    Temsilci: r.temsilci, Login: r.login, Telefon: r.telefon, Ad: r.isim,
-    'Toplam Yatırım': r.toplam_yatirim, 'Yatırım Adedi': r.yatirim_adedi,
-    'Toplam Çekim': r.toplam_cekim, 'Çekim Adedi': r.cekim_adedi, Bakiye: r.bakiye,
-    'Son Yatırım Tarihi': r.son_yatirim_tarihi ? new Date(r.son_yatirim_tarihi).toLocaleString('tr-TR') : '',
-    'Kaç Gündür Pasif': r.gun_sayisi + ' gün',
-    'Rapor Tarihi': r.rapor_tarihi
-  }));
-  const filename = temsilci ? `yeni_vip_ve_pasif_${temsilci}_${viewDate}.xlsx` : `yeni_vip_ve_pasif_tumu_${viewDate}.xlsx`;
+  const vipAlanlar = r => ({
+    Telefon: r.telefon, Personel: r.temsilci, Ad: r.isim, 'Kullanıcı Adı': r.login,
+    'Durum': r.durum || '', 'Kayıt Tarihi': r.kayit_tarihi || '',
+    'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '', 'Toplam Yatırım': r.toplam_yatirim,
+    'Liste': r.liste || ''
+  });
+  const pasifAlanlar = r => ({
+    Telefon: r.telefon, Personel: r.temsilci, Ad: r.isim, 'Kullanıcı Adı': r.login,
+    'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '', 'Son Yatırım Tarihi': r.son_yatirim_tarihi || '',
+    'Yatırım Adedi': r.yatirim_adedi, 'Toplam Yatırım': r.toplam_yatirim,
+    'Son Çekim Tarihi': r.son_cekim_tarihi || '', 'Toplam Çekim': r.toplam_cekim, 'Çekim Adedi': r.cekim_adedi,
+    'Son Giriş': r.son_giris || '', 'Son Bahis': r.son_bahis || '',
+    'Casino Son Bahis': r.casino_son_bahis || '', 'Spor Son Bahis': r.spor_son_bahis || '',
+    'Bakiye': r.bakiye
+  });
+  const vipExportRows = vipRows.map(vipAlanlar);
+  const pasifExportRows = pasifRows.map(r => ({...pasifAlanlar(r), 'Kaç Gündür Pasif': r.gun_sayisi + ' gün'}));
+  const raporTarihi = bugununTarihiTR();
+  const dosyaAdi = temsilci ? `yeni_vip_pasif_kombine_${temsilci}_${raporTarihi}.xlsx` : `yeni_vip_pasif_kombine_tumu_${raporTarihi}.xlsx`;
   await writeStyledWorkbook([
     {name:'Yeni VIP', color:'FF9C7A1E', rows: vipExportRows},
-    {name:'Pasif Yatirimli', color:'FF8F3A30', rows: pasifExportRows}
-  ], filename);
+    {name:'Pasif Kontrol', color:'FF8F3A30', rows: pasifExportRows}
+  ], dosyaAdi);
 }
-function renderYeniVipView(viewDate){
+function renderYeniVipView(){
   const content = document.getElementById('page-yeni-vip');
   if(!content) return;
-  const rows = getYeniVipCandidates(viewDate);
+  const rows = getYeniVipCandidates();
   const grouped = {};
   rows.forEach(r=>{
     const k = r.temsilci || '(atanmamış)';
@@ -1397,14 +1385,14 @@ function renderYeniVipView(viewDate){
   });
   const temsilciler = Object.keys(grouped).sort((a,b)=>a.localeCompare(b,'tr'));
 
-  let html = `<h1 class="page-title">Yeni VIP Üyeler</h1><div class="page-sub">Bir önceki rapora göre 10.000₺ eşiğini yeni geçen üyeler, temsilciye göre gruplu · ${rows.length} üye</div>`;
+  let html = `<h1 class="page-title">Yeni VIP Üyeler</h1><div class="page-sub">Bugün ilk kez VIP eşiğini (10.000₺) geçen üyeler, temsilciye göre gruplu · ${rows.length} üye</div>`;
   html += `<div class="toolbar" style="justify-content:flex-end;">
     <button class="btn secondary" onclick="exportYeniVip(null)">Hepsini İndir</button>
     <button class="btn" onclick="exportKombine(null)">Tümü Kombine İndir (VIP+Pasif)</button>
   </div>`;
 
   if(temsilciler.length===0){
-    html += '<div class="empty">Bu tarih için yeni VIP üye yok.</div>';
+    html += '<div class="empty">Bugün yeni VIP olan üye yok.</div>';
   } else {
     temsilciler.forEach(t=>{
       const list = grouped[t].slice().sort((a,b)=>b.toplam_yatirim-a.toplam_yatirim);
@@ -1414,17 +1402,16 @@ function renderYeniVipView(viewDate){
           <h3 style="font-family:var(--font-display);font-size:15px;margin:0;">${t} <span style="color:var(--muted);font-weight:400;font-size:13px;">(${list.length} üye)</span></h3>
           <div>
             <button class="btn secondary" onclick="exportYeniVip('${safeT}')">Excel İndir</button>
-            <button class="btn secondary" onclick="exportKombine('${safeT}')">Kombine İndir (VIP+Pasif)</button>
           </div>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>Login</th><th>Telefon</th><th>Kayıt</th><th>Yat. adedi</th><th>Toplam yatırım</th><th>Çekim adedi</th><th>Toplam çekim</th><th>İlk çekim</th><th>Son çekim tarihi</th><th>VIP Kontrol</th><th>Hediye Hakkı</th><th>Kaynak</th></tr></thead><tbody>
+        <div class="table-wrap"><table><thead><tr><th>Login</th><th>Ad</th><th>Telefon</th><th>Durum</th><th>Kayıt Tarihi</th><th>İlk Yatırım</th><th>Toplam Yatırım</th><th>Liste</th></tr></thead><tbody>
           ${list.map(r=>`<tr onclick="openMemberModal('${r.login}')" style="cursor:pointer;">
-            <td>${r.login}</td><td>${r.telefon||''}</td><td>${r.kayit_tarihi||''}</td>
-            <td>${fmtInt(r.yatirim_adedi)}</td><td>${fmtMoney(r.toplam_yatirim)}</td>
-            <td>${fmtInt(r.cekim_adedi)}</td><td>${fmtMoney(r.toplam_cekim)}</td>
-            <td>${fmtMoney(r.ilk_cekim)}</td><td>${lastWithdrawalDate(r.login, viewDate)||'–'}</td>
-            <td>${r.vip_kontrol||''}</td><td>${r.hediye_hakki||''}</td>
-            <td>${memberSourceLabel(viewDate, r.login)}</td>
+            <td>${r.login}</td><td>${r.isim||''}</td><td>${r.telefon||''}</td>
+            <td>${r.durum||''}</td>
+            <td>${r.kayit_tarihi ? new Date(r.kayit_tarihi).toLocaleString('tr-TR') : ''}</td>
+            <td>${r.ilk_yatirim_tarihi ? new Date(r.ilk_yatirim_tarihi).toLocaleString('tr-TR') : ''}</td>
+            <td>${fmtMoney(r.toplam_yatirim)}</td>
+            <td>${r.liste||''}</td>
           </tr>`).join('')}
         </tbody></table></div>
       </div>`;
@@ -1436,16 +1423,14 @@ function renderYeniVipView(viewDate){
 async function exportYeniVip(temsilci){
   const rows = (window._yeniVipRows || []).filter(r => !temsilci || r.temsilci === temsilci);
   if(rows.length===0){ alert('Aktarılacak veri yok.'); return; }
-  const viewDate = document.getElementById('viewDate').value;
+  const raporTarihi = bugununTarihiTR();
   const exportRows = rows.map(r => ({
-    Temsilci: r.temsilci, Login: r.login, Telefon: r.telefon, 'Kayıt Tarihi': r.kayit_tarihi,
-    'Yatırım Adedi': r.yatirim_adedi, 'Toplam Yatırım': r.toplam_yatirim,
-    'Çekim Adedi': r.cekim_adedi, 'Toplam Çekim': r.toplam_cekim, 'İlk Çekim': r.ilk_cekim,
-    'Son Çekim Tarihi': lastWithdrawalDate(r.login, viewDate)||'',
-    'VIP Kontrol': r.vip_kontrol||'', 'Hediye Hakkı': r.hediye_hakki||'',
-    'Kaynak': memberSourceLabel(viewDate, r.login)
+    Telefon: r.telefon, Personel: r.temsilci, Ad: r.isim, 'Kullanıcı Adı': r.login,
+    'Durum': r.durum || '', 'Kayıt Tarihi': r.kayit_tarihi || '',
+    'İlk Yatırım Tarihi': r.ilk_yatirim_tarihi || '', 'Toplam Yatırım': r.toplam_yatirim,
+    'Liste': r.liste || ''
   }));
-  const filename = temsilci ? `yeni_vip_${temsilci}_${viewDate}.xlsx` : `yeni_vip_tumu_${viewDate}.xlsx`;
+  const filename = temsilci ? `yeni_vip_${temsilci}_${raporTarihi}.xlsx` : `yeni_vip_tumu_${raporTarihi}.xlsx`;
   await writeStyledWorkbook([{name:'Yeni VIP', color:'FF9C7A1E', rows: exportRows}], filename);
 }
 function renderCurrentPage(page){
@@ -1469,8 +1454,8 @@ function renderCurrentPage(page){
     renderSegmentPage('yatirimli', 'Yatırımlı Gelen Üyeler', 'Yatırım yapmış üyeler', rows);
   }
   if(page==='yeni-vip'){
-    renderYeniVipView(viewDate);
-    document.getElementById('cnt-yeni-vip').textContent = getYeniVipCandidates(viewDate).length;
+    renderYeniVipView();
+    document.getElementById('cnt-yeni-vip').textContent = getYeniVipCandidates().length;
   }
 }
 
