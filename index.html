@@ -1503,13 +1503,17 @@ function renderGenel(viewDate){
   function cardHtml(seg, label, c, t, page){
     return `<div class="card ${seg}" onclick="goPage('${page}')">
       <div class="label">${label}</div><div class="value">${fmtInt(c)} üye</div>
-      <div class="sub">${fmtMoney(vipTutar)} toplam yatırım</div></div>` +
+      <div class="sub">${fmtMoney(t)} toplam yatırım</div></div>`;
+  }
+  cardsWrap.innerHTML =
+    cardHtml('yatirimsiz','Yatırımsız Gelen', cur.yatirimsiz.c, cur.yatirimsiz.t, 'yatirimsiz') +
+    cardHtml('yatirimli','Yatırımlı Gelen', cur.yatirimli.c, cur.yatirimli.t, 'yatirimli') +
+    `<div class="card vip" onclick="goPage('vip')"><div class="label">VIP Üyeler</div><div class="value">${fmtInt(vipCount)} üye</div><div class="sub">${fmtMoney(vipTutar)} toplam yatırım</div></div>` +
     `<div class="card vipyakin" onclick="goPage('vip')"><div class="label">VIP statüsüne yaklaşan</div><div class="value">${fmtInt(tierCount)} üye</div><div class="sub">Bronz→Elmas eşiklerine yakın</div></div>` +
     `<div class="card terfi" onclick="goPage('vip')"><div class="label">VIP terfiye yaklaşan</div><div class="value">${fmtInt(terfiCount)} üye</div><div class="sub">7.000₺–9.999₺ arası</div></div>` +
-    `<div class="card pasif" onclick="goPage('pasif')"><div class="label">Pasif yatırımlı</div><div class="value">${fmtInt(pasifCount)} üye</div><div class="sub">5 / 12 / 21 / 28. gün eşiklerinde</div></div>` +
-    ``;
+    `<div class="card pasif" onclick="goPage('pasif')"><div class="label">Pasif yatırımlı</div><div class="value">${fmtInt(pasifCount)} üye</div><div class="sub">5 / 12 / 21 / 28. gün eşiklerinde</div></div>`;
 
-  renderRepTable('genelRepTable', dayData, cmpData);
+  renderRepTable('genelRepTable', dayData);
   renderTrendChart();
 }
 
