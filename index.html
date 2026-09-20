@@ -700,7 +700,8 @@ function baseRowsForDate(viewDate, segmentFilterFn){
   const dayData = latestByDate[viewDate] || {};
   return Object.values(dayData).filter(segmentFilterFn);
 }
-
+function withDeltas(rows, compareDate){
+  const cmpData = compareDate ? (latestByDate[compareDate]||{}) : null;
   return rows.map(r=>{
     const prev = cmpData ? cmpData[r.login] : null;
     return {...r,
