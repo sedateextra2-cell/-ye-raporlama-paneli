@@ -180,12 +180,7 @@
       <div class="navitem" data-page="yeni-vip" onclick="goPage('yeni-vip')">Yeni VIP Üyeler <span class="count" id="cnt-yeni-vip"></span></div>
       <div class="navitem" data-page="pasif" onclick="goPage('pasif')">Pasif Yatırımlı Üyeler <span class="count" id="cnt-pasif"></span></div>
     </div>
-    <div class="navgroup">
-      <div class="glabel">Ekipler</div>
-      <div class="navitem" data-page="temsilci" onclick="goPage('temsilci')">Temsilci Performansı</div>
-      <div class="navitem" data-page="raporlar" onclick="goPage('raporlar')">Haftalık Raporlar</div>
 
-    </div>
     <div class="navgroup">
       <div class="glabel">Kişisel</div>
       <div class="navitem" data-page="planlama" onclick="goPage('planlama')">Planlama</div>
@@ -705,8 +700,7 @@ function baseRowsForDate(viewDate, segmentFilterFn){
   const dayData = latestByDate[viewDate] || {};
   return Object.values(dayData).filter(segmentFilterFn);
 }
-function withDeltas(rows, compareDate){
-  const cmpData = compareDate ? (latestByDate[compareDate]||{}) : null;
+
   return rows.map(r=>{
     const prev = cmpData ? cmpData[r.login] : null;
     return {...r,
@@ -1490,11 +1484,8 @@ function segCounts(dayData, tarih){
   return acc;
 }
 function renderGenel(viewDate){
-  const compareDate = document.getElementById('compareDate').value;
   const dayData = latestByDate[viewDate] || {};
-  const cmpData = compareDate ? (latestByDate[compareDate]||{}) : null;
   const cur = segCounts(dayData, viewDate);
-  const prev = cmpData ? segCounts(cmpData, compareDate) : null;
 
   const tierCount = vipKontrolRows.filter(r=>tierFor(r.toplam_yatirim)).length;
   const terfiCount = vipKontrolRows.filter(r=>isTerfiYaklasan(r.toplam_yatirim)).length;
@@ -1508,21 +1499,10 @@ function renderGenel(viewDate){
   document.getElementById('cnt-pasif').textContent = pasifCount;
 
   const cardsWrap = document.getElementById('genelCards');
-  function cardHtml(seg, label, c, t, prevC, prevT, page){
-    let deltaHtml = '';
-    if(prev){
-      const dCount = c - prevC, dTotal = t - prevT;
-      const cls = dTotal>0?'up':dTotal<0?'down':'flat';
-      deltaHtml = `<div class="delta ${cls}">${dCount>=0?'+':''}${dCount} üye · ${dTotal>=0?'+':''}${fmtMoney(dTotal)}</div>`;
-    }
+  function cardHtml(seg, label, c, t, page){
     return `<div class="card ${seg}" onclick="goPage('${page}')">
       <div class="label">${label}</div><div class="value">${fmtInt(c)} üye</div>
-      <div class="sub">${fmtMoney(t)} toplam yatırım</div>${deltaHtml}</div>`;
-  }
-  cardsWrap.innerHTML =
-    cardHtml('yatirimsiz','Yatırımsız', cur.yatirimsiz.c, cur.yatirimsiz.t, prev?prev.yatirimsiz.c:0, prev?prev.yatirimsiz.t:0, 'yatirimsiz') +
-    cardHtml('yatirimli','Yatırımlı', cur.yatirimli.c, cur.yatirimli.t, prev?prev.yatirimli.c:0, prev?prev.yatirimli.t:0, 'yatirimli') +
-    `<div class="card vip" onclick="goPage('vip')"><div class="label">VIP</div><div class="value">${fmtInt(vipCount)} üye</div><div class="sub">${fmtMoney(vipTutar)} toplam yatırım</div></div>` +
+      <div class="sub">${fmtMoney(vipTutar)} toplam yatırım</div></div>` +
     `<div class="card vipyakin" onclick="goPage('vip')"><div class="label">VIP statüsüne yaklaşan</div><div class="value">${fmtInt(tierCount)} üye</div><div class="sub">Bronz→Elmas eşiklerine yakın</div></div>` +
     `<div class="card terfi" onclick="goPage('vip')"><div class="label">VIP terfiye yaklaşan</div><div class="value">${fmtInt(terfiCount)} üye</div><div class="sub">7.000₺–9.999₺ arası</div></div>` +
     `<div class="card pasif" onclick="goPage('pasif')"><div class="label">Pasif yatırımlı</div><div class="value">${fmtInt(pasifCount)} üye</div><div class="sub">5 / 12 / 21 / 28. gün eşiklerinde</div></div>` +
@@ -1571,35 +1551,20 @@ function renderTrendChart(){
 }
 
 function renderTemsilciPage(viewDate){
-  const compareDate = document.getElementById('compareDate').value;
-  renderRepTable('temsilciTable', latestByDate[viewDate]||{}, compareDate ? (latestByDate[compareDate]||{}) : null);
+  renderRepTable('temsilciTable', latestByDate[viewDate]||{});
 }
-function renderRepTable(tableId, dayData, cmpData){
+function renderRepTable(tableId, dayData){
   const acc = {};
   Object.values(dayData||{}).forEach(m=>{
     const k = m.temsilci || '(atanmamış)';
     if(!acc[k]) acc[k] = {uye:0, yatirim_adedi:0, toplam_yatirim:0};
     acc[k].uye++; acc[k].yatirim_adedi += m.yatirim_adedi; acc[k].toplam_yatirim += m.toplam_yatirim;
   });
-  const prevAcc = {};
-  if(cmpData){
-    Object.values(cmpData).forEach(m=>{
-      const k = m.temsilci || '(atanmamış)';
-      if(!prevAcc[k]) prevAcc[k] = {toplam_yatirim:0};
-      prevAcc[k].toplam_yatirim += m.toplam_yatirim;
-    });
-  }
   const list = Object.entries(acc).sort((a,b)=>b[1].toplam_yatirim-a[1].toplam_yatirim);
   const table = document.getElementById(tableId);
-  table.innerHTML = `<thead><tr><th>Temsilci</th><th>Üye sayısı</th><th>Yatırım adedi</th><th>Toplam yatırım</th>${cmpData?'<th>Değişim</th>':''}</tr></thead>
-  <tbody>${list.map(([name,d])=>{
-    let deltaCell = '';
-    if(cmpData){
-      const p = prevAcc[name] ? prevAcc[name].toplam_yatirim : 0;
-      const delta = d.toplam_yatirim - p;
-      deltaCell = `<td>${deltaSpan(delta, true)}</td>`;
-    }
-    return `<tr><td>${name}</td><td>${fmtInt(d.uye)}</td><td>${fmtInt(d.yatirim_adedi)}</td><td>${fmtMoney(d.toplam_yatirim)}</td>${deltaCell}</tr>`;
+  table.innerHTML = `<thead><tr><th>Temsilci</th><th>Üye sayısı</th><th>Yatırım adedi</th><th>Toplam yatırım</th></tr></thead>
+  <tbody>${list.map(([name,d])=>`<tr><td>${name}</td><td>${fmtInt(d.uye)}</td><td>${fmtInt(d.yatirim_adedi)}</td><td>${fmtMoney(d.toplam_yatirim)}</td></tr>`).join('')}</tbody>`;
+}im)}</td>${deltaCell}</tr>`;
   }).join('')}</tbody>`;
 }
 
