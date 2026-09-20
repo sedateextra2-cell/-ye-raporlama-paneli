@@ -1565,8 +1565,6 @@ function renderRepTable(tableId, dayData){
   const table = document.getElementById(tableId);
   table.innerHTML = `<thead><tr><th>Temsilci</th><th>Üye sayısı</th><th>Yatırım adedi</th><th>Toplam yatırım</th></tr></thead>
   <tbody>${list.map(([name,d])=>`<tr><td>${name}</td><td>${fmtInt(d.uye)}</td><td>${fmtInt(d.yatirim_adedi)}</td><td>${fmtMoney(d.toplam_yatirim)}</td></tr>`).join('')}</tbody>`;
-}im)}</td>${deltaCell}</tr>`;
-  }).join('')}</tbody>`;
 }
 
 /* ================= ÜYE DETAY MODAL ================= */
