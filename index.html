@@ -1568,6 +1568,7 @@ function renderRepTable(tableId, dayData){
 
 /* ================= ÜYE DETAY MODAL ================= */
 function openMemberModal(login){
+  return; // Üye detay modalı artık hiçbir sayfada açılmıyor.
   const history = historyByLogin[login] || [];
   if(history.length===0) return;
   const latest = history[history.length-1];
